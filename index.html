@@ -560,15 +560,15 @@
       margin-top: 9px;
       padding-left: 27px;
       opacity: 0;
-      max-height: 0;
-      overflow: hidden;
-      transition: opacity 0.16s ease, max-height 0.16s ease;
+      min-height: 29px;
+      pointer-events: none;
+      transition: opacity 0.16s ease;
     }
 
     .task-card:hover .task-actions,
     .task-card:focus-within .task-actions {
       opacity: 1;
-      max-height: 40px;
+      pointer-events: auto;
     }
 
     .text-btn {
@@ -930,7 +930,6 @@
       .task-actions,
       .drag-handle {
         opacity: 1;
-        max-height: none;
       }
 
       .task-actions {
