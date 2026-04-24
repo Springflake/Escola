@@ -827,6 +827,42 @@
       font-size: 12px;
     }
 
+    .undo-bar {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 20;
+      width: min(420px, calc(100vw - 28px));
+      min-height: 46px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transform: translateX(-50%);
+      border: 1px solid var(--line-2);
+      border-radius: 9px;
+      background: rgba(35, 35, 35, 0.96);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.35);
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .undo-bar.show {
+      display: flex;
+    }
+
+    .undo-bar button {
+      height: 30px;
+      border-radius: 7px;
+      background: #f4f4f4;
+      color: #111;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0 10px;
+    }
+
     @media (max-width: 1300px) {
       .board {
         grid-template-columns: repeat(3, minmax(230px, 1fr));
@@ -975,6 +1011,11 @@
     <p class="hint">As tarefas são compartilhadas pelo Firebase e aparecem iguais para toda a turma.</p>
   </div>
 
+  <div class="undo-bar" id="undoBar" role="status" aria-live="polite">
+    <span id="undoMessage">Tarefa excluída.</span>
+    <button type="button" id="undoDelete">Desfazer</button>
+  </div>
+
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
@@ -1004,6 +1045,8 @@
     let tasksDoc = null;
     let saveTimer = null;
     let remoteLoaded = false;
+    let lastDeletedTask = null;
+    let undoTimer = null;
 
     function getInitialState() {
       const base = {};
@@ -1037,6 +1080,9 @@
     const doneList = document.getElementById('doneList');
     const syncStatus = document.getElementById('syncStatus');
     const connectFirebase = document.getElementById('connectFirebase');
+    const undoBar = document.getElementById('undoBar');
+    const undoDelete = document.getElementById('undoDelete');
+    const undoMessage = document.getElementById('undoMessage');
 
     function setSyncStatus(message) {
       syncStatus.textContent = message;
@@ -1434,6 +1480,14 @@
       });
 
       connectFirebase.addEventListener('click', () => startFirebase());
+      undoDelete.addEventListener('click', restoreDeletedTask);
+
+      document.addEventListener('keydown', event => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && lastDeletedTask) {
+          event.preventDefault();
+          restoreDeletedTask();
+        }
+      });
     }
 
     function openComposer(dayId) {
@@ -1463,9 +1517,42 @@
     }
 
     function deleteTask(dayId, taskId) {
+      const task = state[dayId].find(item => item.id === taskId);
+      if (!task) return;
+
+      lastDeletedTask = { dayId, task, index: state[dayId].findIndex(item => item.id === taskId) };
       state[dayId] = state[dayId].filter(task => task.id !== taskId);
       saveState();
       render();
+      showUndoBar(task);
+    }
+
+    function showUndoBar(task) {
+      window.clearTimeout(undoTimer);
+      undoMessage.textContent = `${task.type === 'prova' ? 'Prova' : 'Tarefa'} excluída.`;
+      undoBar.classList.add('show');
+      undoTimer = window.setTimeout(clearUndo, 9000);
+    }
+
+    function clearUndo() {
+      lastDeletedTask = null;
+      undoBar.classList.remove('show');
+    }
+
+    function restoreDeletedTask() {
+      if (!lastDeletedTask) return;
+
+      const { dayId, task, index } = lastDeletedTask;
+      const target = state[dayId] || [];
+      const insertAt = Math.min(Math.max(index, 0), target.length);
+      state[dayId] = [
+        ...target.slice(0, insertAt),
+        task,
+        ...target.slice(insertAt)
+      ];
+      saveState();
+      render();
+      clearUndo();
     }
 
     function duplicateTask(dayId, taskId) {
