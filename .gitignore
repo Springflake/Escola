@@ -2,3 +2,5 @@ node_modules/
 firebase-debug.log
 package.json
 package-lock.json
+dataconnect/
+src/dataconnect-generated/
