@@ -594,17 +594,27 @@
       background: rgba(255, 107, 95, 0.08);
     }
 
-    .move-select {
+    .mobile-move-row {
       display: none;
-      min-width: 116px;
-      height: 29px;
+      gap: 7px;
+      grid-column: 1 / -1;
+    }
+
+    .move-btn {
+      height: 32px;
       border: 1px solid var(--line);
       border-radius: 7px;
       background: rgba(255, 255, 255, 0.03);
       color: var(--muted);
-      padding: 0 8px;
       font-size: 12px;
+      font-weight: 650;
       outline: none;
+      cursor: pointer;
+    }
+
+    .move-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
     }
 
     .edit-box {
@@ -953,13 +963,13 @@
       }
 
       .text-btn,
-      .move-select {
+      .move-btn {
         width: 100%;
       }
 
-      .move-select {
-        display: block;
-        grid-column: 1 / -1;
+      .mobile-move-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
       }
     }
   </style>
@@ -1246,9 +1256,9 @@
       }
 
       const due = formatDue(computed.date, isManual, dayId);
-      const moveOptions = DAYS
-        .map(day => `<option value="${day.id}" ${day.id === dayId ? 'selected' : ''}>Mover para ${day.name}</option>`)
-        .join('');
+      const dayIndex = DAYS.findIndex(day => day.id === dayId);
+      const previousDay = DAYS[dayIndex - 1];
+      const nextDay = DAYS[dayIndex + 1];
       card.innerHTML = `
         <div class="task-main">
           <button class="circle-btn" type="button" aria-label="Marcar concluído" data-toggle="${dayId}" data-id="${task.id}"></button>
@@ -1265,9 +1275,10 @@
           <button class="text-btn" type="button" data-duplicate="${dayId}" data-id="${task.id}">Duplicar</button>
           <button class="text-btn" type="button" data-edit="${dayId}" data-id="${task.id}">Editar</button>
           <button class="text-btn delete" type="button" data-delete="${dayId}" data-id="${task.id}">Excluir</button>
-          <select class="move-select" data-move="${dayId}" data-id="${task.id}" aria-label="Mover tarefa para outro dia">
-            ${moveOptions}
-          </select>
+          <div class="mobile-move-row">
+            <button class="move-btn" type="button" data-move-step="-1" data-day="${dayId}" data-id="${task.id}" ${previousDay ? '' : 'disabled'}>${previousDay ? `← ${previousDay.name}` : 'Início'}</button>
+            <button class="move-btn" type="button" data-move-step="1" data-day="${dayId}" data-id="${task.id}" ${nextDay ? '' : 'disabled'}>${nextDay ? `${nextDay.name} →` : 'Fim'}</button>
+          </div>
         </div>
       `;
       return card;
@@ -1378,8 +1389,8 @@
         button.addEventListener('click', () => duplicateTask(button.dataset.duplicate, button.dataset.id));
       });
 
-      document.querySelectorAll('[data-move]').forEach(select => {
-        select.addEventListener('change', () => moveTask(select.dataset.move, select.value, select.dataset.id));
+      document.querySelectorAll('[data-move-step]').forEach(button => {
+        button.addEventListener('click', () => moveTaskByStep(button.dataset.day, button.dataset.id, Number(button.dataset.moveStep)));
       });
 
       document.querySelectorAll('[data-edit]').forEach(button => {
@@ -1578,6 +1589,13 @@
       state[toDay].push({ ...task, date: task.dateMode === 'auto' ? '' : task.date });
       saveState();
       render();
+    }
+
+    function moveTaskByStep(dayId, taskId, step) {
+      const dayIndex = DAYS.findIndex(day => day.id === dayId);
+      const targetDay = DAYS[dayIndex + step];
+      if (!targetDay) return;
+      moveTask(dayId, targetDay.id, taskId);
     }
 
     function sortTasksByTimeline(dayId, tasks) {
