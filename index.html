@@ -1056,8 +1056,10 @@
 
       DAYS.forEach(day => {
         const tasks = state[day.id] || [];
-        const currentWeekTasks = tasks.filter(task => isCurrentWeekTask(day.id, task));
-        const laterTasks = tasks.filter(task => !isCurrentWeekTask(day.id, task));
+        const sortedTasks = sortTasksByTimeline(day.id, tasks);
+        const currentWeekTasks = sortedTasks.filter(task => isCurrentWeekTask(day.id, task));
+        const laterTasks = sortedTasks.filter(task => !isCurrentWeekTask(day.id, task));
+        const automaticDate = getAutomaticDateForDay(day.id);
         const column = document.createElement('section');
         column.className = 'column';
         column.dataset.day = day.id;
@@ -1090,7 +1092,7 @@
                 <option value="tarefa">Tarefa</option>
                 <option value="prova">Prova</option>
               </select>
-              <input class="field" type="date" name="date" title="Opcional: deixe vazio para usar a data automática da coluna" />
+              <input class="field" type="date" name="date" value="${automaticDate}" data-auto-date="${automaticDate}" title="Já vem no dia da coluna. Troque só se precisar de outra data." />
             </div>
             <div class="composer-actions">
               <button type="button" class="secondary-btn" data-cancel="${day.id}">Cancelar</button>
@@ -1119,6 +1121,8 @@
       card.dataset.day = dayId;
 
       if (editingTask === task.id) {
+        const automaticDate = getAutomaticDateForDay(dayId);
+        const editDate = task.dateMode === 'manual' && task.date ? task.date : automaticDate;
         card.innerHTML = `
           <form class="edit-box" data-edit-form="${dayId}" data-id="${task.id}">
             <input class="field" type="text" name="text" value="${escapeAttribute(task.text)}" required />
@@ -1127,7 +1131,7 @@
                 <option value="tarefa" ${task.type === 'tarefa' ? 'selected' : ''}>Tarefa</option>
                 <option value="prova" ${task.type === 'prova' ? 'selected' : ''}>Prova</option>
               </select>
-              <input class="field" type="date" name="date" value="${escapeAttribute(task.date || '')}" title="Apague a data para voltar ao automático" />
+              <input class="field" type="date" name="date" value="${escapeAttribute(editDate)}" data-auto-date="${automaticDate}" title="Deixe no dia da coluna para usar a data automática" />
             </div>
             <div class="edit-actions">
               <button type="button" class="secondary-btn" data-edit-cancel>Cancelar</button>
@@ -1232,6 +1236,8 @@
           const text = String(formData.get('text') || '').trim();
           const type = String(formData.get('type') || 'tarefa');
           const date = String(formData.get('date') || '');
+          const automaticDate = getAutomaticDateForDay(dayId);
+          const isAutomaticDate = !date || date === automaticDate;
 
           if (!text) return;
 
@@ -1239,8 +1245,8 @@
             id: generateId(),
             text,
             type,
-            date,
-            dateMode: date ? 'manual' : 'auto',
+            date: isAutomaticDate ? '' : date,
+            dateMode: isAutomaticDate ? 'auto' : 'manual',
             done: false
           });
 
@@ -1283,6 +1289,8 @@
           const formData = new FormData(form);
           const nextText = String(formData.get('text') || '').trim();
           const nextDate = String(formData.get('date') || '');
+          const automaticDate = getAutomaticDateForDay(dayId);
+          const isAutomaticDate = !nextDate || nextDate === automaticDate;
 
           if (!nextText) return;
 
@@ -1292,8 +1300,8 @@
               ...task,
               text: nextText,
               type: String(formData.get('type') || 'tarefa'),
-              date: nextDate,
-              dateMode: nextDate ? 'manual' : 'auto'
+              date: isAutomaticDate ? '' : nextDate,
+              dateMode: isAutomaticDate ? 'auto' : 'manual'
             };
           });
 
@@ -1414,6 +1422,14 @@
       state[toDay].push({ ...task, date: task.dateMode === 'auto' ? '' : task.date });
       saveState();
       render();
+    }
+
+    function sortTasksByTimeline(dayId, tasks) {
+      return [...tasks].sort((a, b) => {
+        const dateCompare = getTaskComputedDate(dayId, a).date.localeCompare(getTaskComputedDate(dayId, b).date);
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.text).localeCompare(String(b.text), 'pt-BR');
+      });
     }
 
     function isCurrentWeekTask(dayId, task) {
