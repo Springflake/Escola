@@ -560,15 +560,14 @@
       margin-top: 9px;
       padding-left: 27px;
       opacity: 0;
-      min-height: 29px;
-      pointer-events: none;
-      transition: opacity 0.16s ease;
+      max-height: 0;
+      overflow: hidden;
+      transition: opacity 0.16s ease, max-height 0.16s ease;
     }
 
-    .task-card:hover .task-actions,
-    .task-card:focus-within .task-actions {
+    .task-card:hover .task-actions {
       opacity: 1;
-      pointer-events: auto;
+      max-height: 40px;
     }
 
     .text-btn {
@@ -930,6 +929,7 @@
       .task-actions,
       .drag-handle {
         opacity: 1;
+        max-height: none;
       }
 
       .task-actions {
@@ -1090,12 +1090,20 @@
         tasksDoc = doc(db, 'planner', 'shared');
         onSnapshot(tasksDoc, snapshot => {
           remoteLoaded = true;
+          let nextState;
           if (snapshot.exists()) {
-            state = parseState(snapshot.data().tasks || {});
+            nextState = parseState(snapshot.data().tasks || {});
           } else {
-            state = getInitialState();
+            nextState = getInitialState();
             saveState();
           }
+
+          if (statesMatch(state, nextState)) {
+            setSyncStatus('Sincronizado');
+            return;
+          }
+
+          state = nextState;
           setSyncStatus('Sincronizado');
           render();
         }, () => {
@@ -1556,6 +1564,25 @@
         if (dateCompare !== 0) return dateCompare;
         return String(a.text).localeCompare(String(b.text), 'pt-BR');
       });
+    }
+
+    function statesMatch(first, second) {
+      return JSON.stringify(normalizeStateForCompare(first)) === JSON.stringify(normalizeStateForCompare(second));
+    }
+
+    function normalizeStateForCompare(value) {
+      const normalized = {};
+      DAYS.forEach(day => {
+        normalized[day.id] = (value[day.id] || []).map(task => ({
+          id: task.id,
+          text: task.text,
+          type: task.type,
+          date: task.date,
+          dateMode: task.dateMode,
+          done: Boolean(task.done)
+        }));
+      });
+      return normalized;
     }
 
     function isCurrentWeekTask(dayId, task) {
